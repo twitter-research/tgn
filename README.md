@@ -21,7 +21,17 @@ We furthermore show that several previous models for learning on dynamic graphs 
 
 ## Running the experiments
 
-### Dataset and preprocessing
+### Requirements
+
+Dependencies (with python >= 3.7):
+
+```{bash}
+pandas==1.1.0
+torch==1.6.0
+scikit_learn==0.23.1
+```
+
+### Dataset and Preprocessing
 
 #### Download the public data
 Download the sample datasets (eg. wikipedia and reddit) from [here](http://snap.stanford
@@ -35,51 +45,23 @@ python utils/preprocess_data.py --data wikipedia
 python utils/preprocess_data.py --data reddit
 ```
 
-### Requirements
 
-Dependencies (with python >= 3.7):
 
+### Model Training
+
+Self-supervised learning using the link prediction task:
 ```{bash}
-pandas==1.1.0
-torch==1.6.0
-scikit_learn==0.23.1
-```
-
-### Command and configurations
-
-#### Running the Code
-
-* Learning the network using link prediction tasks
-```{bash}
-# TGN-attn self-supervised learning on the wikipedia dataset
+# TGN-attn: self-supervised learning on the wikipedia dataset
 python train_self_supervised.py --use_memory --prefix tgn-attn --n_runs 10
 
-# TGN-attn self-supervised learning on the reddit dataset
+# TGN-attn-reddit: self-supervised learning on the reddit dataset
 python train_self_supervised.py -d reddit --use_memory --prefix tgn-attn-reddit --n_runs 10
 ```
 
-* Learning the down-stream task (node-classification)
+### Ablation Study
+Commands to replicate all results in the ablation study.
 
-Node-classification task reuses the encoder model trained previously on the self-supervised task. 
-Make sure the `prefix` is the same so that the checkpoint can be found under `saved_models`.
-
-```{bash}
-# TGN-attn supervised learning on the wikipedia dataset
-python train_supervised.py -d wikipedia --n_degree 10 --prefix attention_projection_identity_message_1_layer_10_neighbors --n_layer=1 --n_epoch=50 --use_memory --backprop_every 1 --embedding_module graph_attention --message_function identity --n_runs 10 --gpu 0
-
-# TGN-attn supervised learning on the reddit dataset
-python train_supervised.py -d reddit --n_degree 10 --prefix attention_projection_identity_message_1_layer_10_neighbors --n_layer=1 --n_epoch=50 --use_memory --backprop_every 1 --embedding_module graph_attention --message_function identity --n_runs 10 --gpu 0
-```
-
-#### Notes
-For the sake of simplicity, the memory module of the TGN model is implemented as a parameter (so 
-it is stored and loaded together of the model). However, this does not need to be the case, and 
-more efficient implementations which treat the models as just tensors (in the same way as the 
-input features) would be more amenable to large graphs.
-
-#### Commands to replicate all results in the ablation study
-
-##### Ablation study over different models
+Ablation study over different models:
 ```{bash}
 # TGN-2l
 python train_self_supervised.py --use_memory --n_layer 2 --prefix tgn-2l --n_runs 10 
@@ -100,7 +82,7 @@ python train_self_supervised.py --use_memory --embedding_module graph_sum --pref
 python train_self_supervised.py --use_memory --aggregator mean --prefix tgn-mean --n_runs 10
 ```
 
-##### Ablation study over different training strategies
+Ablation study over different training strategies:
 ```{bash}
 # TGN-id-s1
 python train_self_supervised.py --use_memory --embedding_module identity --prefix TGN-id-s1 --n_runs 10 
@@ -158,6 +140,14 @@ optional arguments:
   --different_new_nodes        Whether to use different unseen nodes for validation and testing
   --uniform                    Whether to sample the temporal neighbors uniformly (or instead take the most recent ones)
 ```
+
+##TODOs 
+* Add code for training on the downstream node-classification task
+* Make code memory efficient: for the sake of simplicity, the memory module of the TGN model is 
+implemented as a parameter (so that it is stored and loaded together of the model). However, this 
+does not need to be the case, and 
+more efficient implementations which treat the models as just tensors (in the same way as the 
+input features) would be more amenable to large graphs.
 
 ## Cite us
 

@@ -141,7 +141,7 @@ optional arguments:
   --uniform                    Whether to sample the temporal neighbors uniformly (or instead take the most recent ones)
 ```
 
-##TODOs 
+## TODOs 
 * Add code for training on the downstream node-classification task
 * Make code memory efficient: for the sake of simplicity, the memory module of the TGN model is 
 implemented as a parameter (so that it is stored and loaded together of the model). However, this 

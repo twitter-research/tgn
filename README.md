@@ -34,8 +34,9 @@ scikit_learn==0.23.1
 ### Dataset and Preprocessing
 
 #### Download the public data
-Download the sample datasets (eg. wikipedia and reddit) from [here](http://snap.stanford
-.edu/jodie/) and store their csv files in a folder named ```data/```.
+Download the sample datasets (eg. wikipedia and reddit) from
+[here](http://snap.stanford.edu/jodie/) and store their csv files in a folder named
+```data/```.
 
 #### Preprocess the data
 We use the dense `npy` format to save the features in binary format. If edge features or nodes 

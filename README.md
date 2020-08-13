@@ -1,4 +1,4 @@
-# TGN: Temporal Graph Networks
+# TGN: Temporal Graph Networks [[arXiv](https://arxiv.org/abs/2006.10637), [YouTube](https://www.youtube.com/watch?v=W1GvX2ZcUmY), [Blog Post](https://towardsdatascience.com/temporal-graph-networks-ab8f327f2efe)] 
 
 Dynamic Graph             |  TGN	
 :-------------------------:|:-------------------------:	
@@ -152,13 +152,13 @@ input features) would be more amenable to large graphs.
 
 ## Cite us
 
-```
+```bibtex
 @inproceedings{tgn_icml_grl2020,
-title={Temporal Graph Networks for Deep Learning on Dynamic Graphs},
-author={Emanuele Rossi and Ben Chamberlain and Fabrizio Frasca and Davide Eynard and Federico 
-Monti and Michael Bronstein},
-booktitle={ICML 2020 Workshop on Graph Representation Learning},
-year={2020}
+    title={Temporal Graph Networks for Deep Learning on Dynamic Graphs},
+    author={Emanuele Rossi and Ben Chamberlain and Fabrizio Frasca and Davide Eynard and Federico 
+    Monti and Michael Bronstein},
+    booktitle={ICML 2020 Workshop on Graph Representation Learning},
+    year={2020}
 }
 ```
 

@@ -15,11 +15,14 @@ class Data:
     self.n_unique_nodes = len(self.unique_nodes)
 
 
-def get_data(dataset_name, different_new_nodes_between_val_and_test=False):
+def get_data(dataset_name, different_new_nodes_between_val_and_test=False, randomize_features=False):
   ### Load data and train val test split
   graph_df = pd.read_csv('./data/ml_{}.csv'.format(dataset_name))
   edge_features = np.load('./data/ml_{}.npy'.format(dataset_name))
-  node_features = np.load('./data/ml_{}_node.npy'.format(dataset_name))
+  node_features = np.load('./data/ml_{}_node.npy'.format(dataset_name)) 
+    
+  if randomize_features:
+    node_features = np.random.rand(node_features.shape[0], node_features.shape[1])
 
   val_time, test_time = list(np.quantile(graph_df.ts, [0.70, 0.85]))
 

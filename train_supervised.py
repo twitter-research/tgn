@@ -102,9 +102,6 @@ DROP_OUT = args.drop_out
 GPU = args.gpu
 UNIFORM = args.uniform
 NEW_NODE = args.new_node
-USE_TIME = args.time
-AGG_METHOD = args.agg_method
-ATTN_MODE = args.attn_mode
 SEQ_LEN = NUM_NEIGHBORS
 DATA = args.data
 NUM_LAYER = args.n_layer
@@ -113,7 +110,6 @@ NODE_LAYER = 1
 NODE_DIM = args.node_dim
 TIME_DIM = args.time_dim
 USE_MEMORY = args.use_memory
-MEMORY_N_HOPS = args.memory_n_hops
 MESSAGE_DIM = args.message_dim
 MEMORY_DIM = args.memory_dim
 
@@ -141,9 +137,9 @@ logger.addHandler(ch)
 logger.info(args)
 
 ### Load data and train val test split
-g_df = pd.read_csv('./processed/ml_{}.csv'.format(DATA))
-edge_features = np.load('./processed/ml_{}.npy'.format(DATA))
-node_features = np.load('./processed/ml_{}_node.npy'.format(DATA))
+g_df = pd.read_csv('./data/ml_{}.csv'.format(DATA))
+edge_features = np.load('./data/ml_{}.npy'.format(DATA))
+node_features = np.load('./data/ml_{}_node.npy'.format(DATA))
 
 val_time, test_time = list(np.quantile(g_df.ts, [0.70, 0.85]))
 
@@ -248,12 +244,12 @@ for i in range(args.n_runs):
 
   num_instance = len(train_src_l)
   num_batch = math.ceil(num_instance / BATCH_SIZE)
-  logger.debug('num of training instances: {}'.format(num_instance))
-  logger.debug('num of batches per epoch: {}'.format(num_batch))
+  logger.debug('Num of training instances: {}'.format(num_instance))
+  logger.debug('Num of batches per epoch: {}'.format(num_batch))
   idx_list = np.arange(num_instance)
   np.random.shuffle(idx_list)
 
-  logger.info('loading saved TGAN model')
+  logger.info('Loading saved TGN model')
   model_path = f'./saved_models/{args.prefix}-{DATA}.pth'
   tgn.load_state_dict(torch.load(model_path))
   tgn.eval()
@@ -286,7 +282,7 @@ for i in range(args.n_runs):
         label_l_cut = label_l[s_idx:e_idx]
         size = len(src_l_cut)
         edge_idxs_batch = e_idx_l[s_idx: e_idx]
-        src_embed, dst_embed, negative_embed = tgan.contrast_embeddings(src_l_cut, dst_l_cut,
+        src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut, dst_l_cut,
                                                                         dst_l_cut, ts_l_cut,
                                                                         edge_idxs_batch,
                                                                         NUM_NEIGHBORS)

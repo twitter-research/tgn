@@ -42,8 +42,8 @@ Download the sample datasets (eg. wikipedia and reddit) from
 We use the dense `npy` format to save the features in binary format. If edge features or nodes 
 features are absent, they will be replaced by a vector of zeros. 
 ```{bash}
-python utils/preprocess_data.py --data wikipedia
-python utils/preprocess_data.py --data reddit
+python utils/preprocess_data.py --data wikipedia --bipartite
+python utils/preprocess_data.py --data reddit --bipartite
 ```
 
 

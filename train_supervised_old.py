@@ -165,19 +165,7 @@ test_label_l = test_data.labels
 
 max_idx = max(full_data.unique_nodes)
 
-### Initialize the data structure for graph and edge sampling
-adj_list = [[] for _ in range(max_idx + 1)]
-for src, dst, eidx, ts in zip(train_src_l, train_dst_l, train_e_idx_l, train_ts_l):
-  adj_list[src].append((dst, eidx, ts))
-  adj_list[dst].append((src, eidx, ts))
-train_ngh_finder = NeighborFinder(adj_list, uniform=UNIFORM)
-
-# full graph with all the data for the test and validation purpose
-full_adj_list = [[] for _ in range(max_idx + 1)]
-for src, dst, eidx, ts in zip(src_l, dst_l, e_idx_l, ts_l):
-  full_adj_list[src].append((dst, eidx, ts))
-  full_adj_list[dst].append((src, eidx, ts))
-full_ngh_finder = NeighborFinder(full_adj_list, uniform=UNIFORM)
+train_ngh_finder = get_neighbor_finder(train_data, uniform=UNIFORM, max_node_idx=max_idx)
 
 ### Model initialize
 device = torch.device('cuda:{}'.format(GPU)) if torch.cuda.is_available() else "cpu"

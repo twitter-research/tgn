@@ -21,7 +21,6 @@ random.seed(0)
 np.random.seed(0)
 torch.manual_seed(0)
 
-
 class LR(torch.nn.Module):
   def __init__(self, dim, drop=0.3):
     super().__init__()
@@ -37,6 +36,7 @@ class LR(torch.nn.Module):
     x = self.act(self.fc_2(x))
     x = self.dropout(x)
     return self.fc_3(x).squeeze(dim=1)
+
 
 
 ### Argument and global variables
@@ -65,7 +65,7 @@ parser.add_argument('--embedding_module', type=str, default="graph_attention", c
 parser.add_argument('--message_function', type=str, default="identity", choices=[
   "mlp", "identity"], help='Type of message function')
 parser.add_argument('--aggregator', type=str, default="last", help='Type of message '
-                                                                   'aggregator')
+                                                                        'aggregator')
 parser.add_argument('--memory_update_at_end', action='store_true',
                     help='Whether to update memory at the end or at the start of the batch')
 parser.add_argument('--message_dim', type=int, default=100, help='Dimensions of the messages')
@@ -79,6 +79,7 @@ parser.add_argument('--randomize_features', action='store_true',
                     help='Whether to randomize node features')
 parser.add_argument('--use_destination_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the destination node as part of the message')
+
 
 ### Argument and global variables
 parser.add_argument('--n_neg', type=int, default=1)
@@ -136,15 +137,52 @@ logger.addHandler(ch)
 logger.info(args)
 
 full_data, node_features, edge_features, train_data, val_data, test_data = \
-  get_data_node_classification(DATA, use_validation=args.use_validation)
+  get_data_node_classification(DATA, use_validation=args.tune)
 
-# Initialize neighbor finder to retrieve temporal graph
-full_ngh_finder = get_neighbor_finder(full_data, args.uniform)
+
+src_l = full_data.sources
+dst_l = full_data.destinations
+e_idx_l = full_data.edge_idxs
+ts_l = full_data.timestamps
+
+train_src_l = train_data.sources
+train_dst_l = train_data.destinations
+train_e_idx_l = train_data.edge_idxs
+train_ts_l = train_data.timestamps
+train_label_l = train_data.labels
+
+val_src_l = val_data.sources
+val_dst_l = val_data.destinations
+val_e_idx_l = val_data.edge_idxs
+val_ts_l = val_data.timestamps
+val_label_l = val_data.labels
+
+test_src_l = test_data.sources
+test_dst_l = test_data.destinations
+test_e_idx_l = test_data.edge_idxs
+test_ts_l = test_data.timestamps
+test_label_l = test_data.labels
+
+max_idx = max(full_data.unique_nodes)
+
+### Initialize the data structure for graph and edge sampling
+adj_list = [[] for _ in range(max_idx + 1)]
+for src, dst, eidx, ts in zip(train_src_l, train_dst_l, train_e_idx_l, train_ts_l):
+  adj_list[src].append((dst, eidx, ts))
+  adj_list[dst].append((src, eidx, ts))
+train_ngh_finder = NeighborFinder(adj_list, uniform=UNIFORM)
+
+# full graph with all the data for the test and validation purpose
+full_adj_list = [[] for _ in range(max_idx + 1)]
+for src, dst, eidx, ts in zip(src_l, dst_l, e_idx_l, ts_l):
+  full_adj_list[src].append((dst, eidx, ts))
+  full_adj_list[dst].append((src, eidx, ts))
+full_ngh_finder = NeighborFinder(full_adj_list, uniform=UNIFORM)
 
 ### Model initialize
 device = torch.device('cuda:{}'.format(GPU)) if torch.cuda.is_available() else "cpu"
 mean_time_shift_src, std_time_shift_src, mean_time_shift_dst, std_time_shift_dst = \
-  compute_time_statistics(full_data.sources, full_data.destinations, full_data.timestamps)
+  compute_time_statistics(src_l, dst_l, ts_l)
 
 for i in range(args.n_runs):
   results_path = "results/{}_node_classification_{}.pkl".format(args.prefix,
@@ -153,7 +191,7 @@ for i in range(args.n_runs):
   Path("results/").mkdir(parents=True, exist_ok=True)
 
   # Initialize Model
-  tgn = TGN(neighbor_finder=full_ngh_finder, node_features=node_features,
+  tgn = TGN(neighbor_finder=train_ngh_finder, node_features=node_features,
             edge_features=edge_features, device=device,
             n_layers=NUM_LAYER,
             n_heads=NUM_HEADS, dropout=DROP_OUT, use_memory=USE_MEMORY,
@@ -168,9 +206,8 @@ for i in range(args.n_runs):
 
   tgn = tgn.to(device)
 
-  num_instance = len(train_data.sources)
+  num_instance = len(train_src_l)
   num_batch = math.ceil(num_instance / BATCH_SIZE)
-
   logger.debug('Num of training instances: {}'.format(num_instance))
   logger.debug('Num of batches per epoch: {}'.format(num_batch))
   idx_list = np.arange(num_instance)
@@ -187,6 +224,7 @@ for i in range(args.n_runs):
   lr_optimizer = torch.optim.Adam(lr_model.parameters(), lr=args.lr)
   lr_model = lr_model.to(device)
   tgn.ngh_finder = full_ngh_finder
+  idx_list = np.arange(len(train_src_l))
   lr_criterion = torch.nn.BCELoss()
   lr_criterion_eval = torch.nn.BCELoss()
 
@@ -206,12 +244,12 @@ for i in range(args.n_runs):
         dst_l_cut = dst_l[s_idx:e_idx]
         ts_l_cut = ts_l[s_idx:e_idx]
         label_l_cut = label_l[s_idx:e_idx]
-        edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
-        src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut,
-                                                                                dst_l_cut,
-                                                                                dst_l_cut, ts_l_cut,
-                                                                                edge_idxs_batch,
-                                                                                NUM_NEIGHBORS)
+        size = len(src_l_cut)
+        edge_idxs_batch = e_idx_l[s_idx: e_idx]
+        src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut, dst_l_cut,
+                                                                        dst_l_cut, ts_l_cut,
+                                                                        edge_idxs_batch,
+                                                                        NUM_NEIGHBORS)
         src_label = torch.from_numpy(label_l_cut).float().to(device)
         lr_prob = lr_model(src_embed).sigmoid()
         loss += lr_criterion_eval(lr_prob, src_label).item()
@@ -230,7 +268,7 @@ for i in range(args.n_runs):
     if USE_MEMORY:
       tgn.memory.__init_memory__()
 
-    lr_pred_prob = np.zeros(len(train_data.sources))
+    lr_pred_prob = np.zeros(len(train_src_l))
     np.random.shuffle(idx_list)
     tgn = tgn.eval()
     lr_model = lr_model.train()
@@ -239,19 +277,19 @@ for i in range(args.n_runs):
     for k in range(num_batch):
       s_idx = k * BATCH_SIZE
       e_idx = min(num_instance - 1, s_idx + BATCH_SIZE)
-      src_l_cut = train_data.sources[s_idx:e_idx]
-      dst_l_cut = train_data.destinations[s_idx:e_idx]
-      ts_l_cut = train_data.timestamps[s_idx:e_idx]
-      label_l_cut = train_data.labels[s_idx:e_idx]
-      edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
+      src_l_cut = train_src_l[s_idx:e_idx]
+      dst_l_cut = train_dst_l[s_idx:e_idx]
+      ts_l_cut = train_ts_l[s_idx:e_idx]
+      label_l_cut = train_label_l[s_idx:e_idx]
+      edge_idxs_batch = e_idx_l[s_idx: e_idx]
       size = len(src_l_cut)
 
       lr_optimizer.zero_grad()
       with torch.no_grad():
         src_embed, dst_embed, negative_embed = tgn.compute_temporal_embeddings(src_l_cut, dst_l_cut,
-                                                                               dst_l_cut, ts_l_cut,
-                                                                               edge_idxs_batch,
-                                                                               NUM_NEIGHBORS)
+                                                                       dst_l_cut, ts_l_cut,
+                                                                       edge_idxs_batch,
+                                                                       NUM_NEIGHBORS)
 
       src_label = torch.from_numpy(label_l_cut).float().to(device)
       lr_prob = lr_model(src_embed).sigmoid()
@@ -263,9 +301,7 @@ for i in range(args.n_runs):
 
     # train_auc, train_loss = eval_epoch(train_src_l, train_dst_l, train_ts_l, train_label_l,
     #                                  BATCH_SIZE, lr_model, tgan)
-    val_auc, val_loss = eval_epoch(val_data.sources, val_data.destinations, val_data.timestamps,
-                                   val_data.labels,
-                                   BATCH_SIZE,
+    val_auc, val_loss = eval_epoch(val_src_l, val_dst_l, val_ts_l, val_label_l, BATCH_SIZE,
                                    lr_model, tgn)
     val_aucs.append(val_auc)
 
@@ -291,9 +327,7 @@ for i in range(args.n_runs):
     lr_model.load_state_dict(torch.load(best_model_path))
     logger.info(f'Loaded the best model at epoch {early_stopper.best_epoch} for inference')
     lr_model.eval()
-    test_auc, test_loss = eval_epoch(test_data.sources, test_data.destinations,
-                                     test_data.timestamps,
-                                     test_data.labels, BATCH_SIZE,
+    test_auc, test_loss = eval_epoch(test_src_l, test_dst_l, test_ts_l, test_label_l, BATCH_SIZE,
                                      lr_model, tgn)
   else:
     test_auc = val_aucs[-1]

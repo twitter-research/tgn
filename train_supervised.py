@@ -45,7 +45,7 @@ parser.add_argument('--embedding_module', type=str, default="graph_attention", c
 parser.add_argument('--message_function', type=str, default="identity", choices=[
   "mlp", "identity"], help='Type of message function')
 parser.add_argument('--aggregator', type=str, default="last", help='Type of message '
-                                                                   'aggregator')
+                                                                        'aggregator')
 parser.add_argument('--memory_update_at_end', action='store_true',
                     help='Whether to update memory at the end or at the start of the batch')
 parser.add_argument('--message_dim', type=int, default=100, help='Dimensions of the messages')
@@ -59,8 +59,6 @@ parser.add_argument('--randomize_features', action='store_true',
                     help='Whether to randomize node features')
 parser.add_argument('--use_destination_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the destination node as part of the message')
-
-### Argument and global variables
 parser.add_argument('--n_neg', type=int, default=1)
 parser.add_argument('--use_validation', action='store_true',
                     help='Whether to use a validation set')
@@ -81,6 +79,7 @@ DROP_OUT = args.drop_out
 GPU = args.gpu
 UNIFORM = args.uniform
 NEW_NODE = args.new_node
+SEQ_LEN = NUM_NEIGHBORS
 DATA = args.data
 NUM_LAYER = args.n_layer
 LEARNING_RATE = args.lr
@@ -117,11 +116,9 @@ logger.info(args)
 full_data, node_features, edge_features, train_data, val_data, test_data = \
   get_data_node_classification(DATA, use_validation=args.use_validation)
 
-# Initialize training neighbor finder to retrieve temporal graph
-train_ngh_finder = get_neighbor_finder(train_data, args.uniform)
+max_idx = max(full_data.unique_nodes)
 
-# Initialize validation and test neighbor finder to retrieve temporal graph
-full_ngh_finder = get_neighbor_finder(full_data, args.uniform)
+train_ngh_finder = get_neighbor_finder(train_data, uniform=UNIFORM, max_node_idx=max_idx)
 
 # Set device
 device_string = 'cuda:{}'.format(GPU) if torch.cuda.is_available() else 'cpu'
@@ -155,7 +152,7 @@ for i in range(args.n_runs):
 
   num_instance = len(train_data.sources)
   num_batch = math.ceil(num_instance / BATCH_SIZE)
-
+  
   logger.debug('Num of training instances: {}'.format(num_instance))
   logger.debug('Num of batches per epoch: {}'.format(num_batch))
 
@@ -169,11 +166,7 @@ for i in range(args.n_runs):
   decoder = MLP(node_features.shape[1], drop=DROP_OUT)
   decoder_optimizer = torch.optim.Adam(decoder.parameters(), lr=args.lr)
   decoder = decoder.to(device)
-
-  # TODO: Why do we set the full ngh finder here?
-  tgn.ngh_finder = full_ngh_finder
   decoder_loss_criterion = torch.nn.BCELoss()
-  lr_criterion_eval = torch.nn.BCELoss()
 
   val_aucs = []
   train_losses = []
@@ -187,7 +180,7 @@ for i in range(args.n_runs):
     tgn = tgn.eval()
     decoder = decoder.train()
     loss = 0
-    # num_batch
+    
     for k in range(num_batch):
       s_idx = k * BATCH_SIZE
       e_idx = min(num_instance, s_idx + BATCH_SIZE)
@@ -195,7 +188,7 @@ for i in range(args.n_runs):
       sources_batch = train_data.sources[s_idx: e_idx]
       destinations_batch = train_data.destinations[s_idx: e_idx]
       timestamps_batch = train_data.timestamps[s_idx: e_idx]
-      edge_idxs_batch = train_data.edge_idxs[s_idx: e_idx]
+      edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
       labels_batch = train_data.labels[s_idx: e_idx]
 
       size = len(sources_batch)
@@ -210,53 +203,51 @@ for i in range(args.n_runs):
                                                                                      NUM_NEIGHBORS)
 
       labels_batch_torch = torch.from_numpy(labels_batch).float().to(device)
-      pred_prob = decoder(source_embedding).sigmoid()
-      loss_batch = decoder_loss_criterion(pred_prob, labels_batch_torch)
-      loss_batch.backward()
+      pred = decoder(source_embedding).sigmoid()
+      decoder_loss = decoder_loss_criterion(pred, labels_batch_torch)
+      decoder_loss.backward()
       decoder_optimizer.step()
-      loss += loss_batch.item()
-
+      loss += decoder_loss.item()
     train_losses.append(loss / num_batch)
 
-    val_auc = eval_node_classification(tgn, decoder, val_data, batch_size=BATCH_SIZE,
+    val_auc = eval_node_classification(tgn, decoder, val_data, full_data.edge_idxs, BATCH_SIZE,
                                        n_neighbors=NUM_NEIGHBORS)
-
     val_aucs.append(val_auc)
 
     pickle.dump({
       "val_aps": val_aucs,
       "train_losses": train_losses,
-      "epoch_times": 0.0,
+      "epoch_times": [0.0],
       "new_nodes_val_aps": [],
     }, open(results_path, "wb"))
 
-    logger.info(f'Epoch {epoch}: train loss: {loss / num_batch}, val auc: {val_auc}')
+    logger.info(f'train loss: {loss / num_batch}, val auc: {val_auc}')
 
-    if args.use_validation:
-      if early_stopper.early_stop_check(val_auc):
-        logger.info('No improvement over {} epochs, stop training'.format(early_stopper.max_round))
-        break
-      else:
-        torch.save(decoder.state_dict(), get_checkpoint_path(epoch))
+    if early_stopper.early_stop_check(val_auc):
+      logger.info('No improvement over {} epochs, stop training'.format(early_stopper.max_round))
+      break
+    else:
+      torch.save(decoder.state_dict(), get_checkpoint_path(epoch))
 
-  if args.use_validation:
+  if args.tune:
     logger.info(f'Loading the best model at epoch {early_stopper.best_epoch}')
     best_model_path = get_checkpoint_path(early_stopper.best_epoch)
     decoder.load_state_dict(torch.load(best_model_path))
     logger.info(f'Loaded the best model at epoch {early_stopper.best_epoch} for inference')
     decoder.eval()
-    test_auc, test_loss = eval_node_classification(tgn, decoder, test_data, batch_size=BATCH_SIZE,
-                                                   n_neighbors=NUM_NEIGHBORS)
+
+    test_auc = eval_node_classification(tgn, decoder, test_data, full_data.edge_idxs, BATCH_SIZE,
+                                        n_neighbors=NUM_NEIGHBORS)
   else:
     # If we are not using a validation set, the test performance is just the performance computed
     # in the last epoch
     test_auc = val_aucs[-1]
-
+    
   pickle.dump({
     "val_aps": val_aucs,
     "test_ap": test_auc,
     "train_losses": train_losses,
-    "epoch_times": [0.0],
+    "epoch_times": 0.0,
     "new_nodes_val_aps": [],
     "new_node_test_ap": 0,
   }, open(results_path, "wb"))

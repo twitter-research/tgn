@@ -139,30 +139,6 @@ logger.info(args)
 full_data, node_features, edge_features, train_data, val_data, test_data = \
   get_data_node_classification(DATA, use_validation=args.tune)
 
-
-src_l = full_data.sources
-dst_l = full_data.destinations
-e_idx_l = full_data.edge_idxs
-ts_l = full_data.timestamps
-
-train_src_l = train_data.sources
-train_dst_l = train_data.destinations
-train_e_idx_l = train_data.edge_idxs
-train_ts_l = train_data.timestamps
-train_label_l = train_data.labels
-
-val_src_l = val_data.sources
-val_dst_l = val_data.destinations
-val_e_idx_l = val_data.edge_idxs
-val_ts_l = val_data.timestamps
-val_label_l = val_data.labels
-
-test_src_l = test_data.sources
-test_dst_l = test_data.destinations
-test_e_idx_l = test_data.edge_idxs
-test_ts_l = test_data.timestamps
-test_label_l = test_data.labels
-
 max_idx = max(full_data.unique_nodes)
 
 train_ngh_finder = get_neighbor_finder(train_data, uniform=UNIFORM, max_node_idx=max_idx)
@@ -170,7 +146,7 @@ train_ngh_finder = get_neighbor_finder(train_data, uniform=UNIFORM, max_node_idx
 ### Model initialize
 device = torch.device('cuda:{}'.format(GPU)) if torch.cuda.is_available() else "cpu"
 mean_time_shift_src, std_time_shift_src, mean_time_shift_dst, std_time_shift_dst = \
-  compute_time_statistics(src_l, dst_l, ts_l)
+  compute_time_statistics(full_data.sources, full_data.destinations, full_data.timestamps)
 
 for i in range(args.n_runs):
   results_path = "results/{}_node_classification_{}.pkl".format(args.prefix,
@@ -232,7 +208,7 @@ for i in range(args.n_runs):
         ts_l_cut = ts_l[s_idx:e_idx]
         label_l_cut = label_l[s_idx:e_idx]
         size = len(src_l_cut)
-        edge_idxs_batch = e_idx_l[s_idx: e_idx]
+        edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
         src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut, dst_l_cut,
                                                                         dst_l_cut, ts_l_cut,
                                                                         edge_idxs_batch,
@@ -255,7 +231,7 @@ for i in range(args.n_runs):
     if USE_MEMORY:
       tgn.memory.__init_memory__()
 
-    lr_pred_prob = np.zeros(len(train_src_l))
+    lr_pred_prob = np.zeros(len(train_data.sources))
     np.random.shuffle(idx_list)
     tgn = tgn.eval()
     lr_model = lr_model.train()

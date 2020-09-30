@@ -46,7 +46,7 @@ def eval_edge_prediction(model, negative_edge_sampler, data, n_neighbors, batch_
   return np.mean(val_ap), np.mean(val_auc)
 
 
-def eval_node_classification(tgn, decoder, data, batch_size, n_neighbors):
+def eval_node_classification(tgn, decoder, data, edge_idxs, batch_size, n_neighbors):
   pred_prob = np.zeros(len(data.sources))
   num_instance = len(data.sources)
   num_batch = math.ceil(num_instance / batch_size)
@@ -61,7 +61,7 @@ def eval_node_classification(tgn, decoder, data, batch_size, n_neighbors):
       sources_batch = data.sources[s_idx: e_idx]
       destinations_batch = data.destinations[s_idx: e_idx]
       timestamps_batch = data.timestamps[s_idx:e_idx]
-      edge_idxs_batch = data.edge_idxs[s_idx: e_idx]
+      edge_idxs_batch = edge_idxs[s_idx: e_idx]
 
       source_embedding, destination_embedding, _ = tgn.compute_temporal_embeddings(sources_batch,
                                                                                    destinations_batch,

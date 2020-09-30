@@ -16,6 +16,7 @@ from sklearn.metrics import roc_auc_score
 from model.tgn import TGN
 from utils.utils import EarlyStopMonitor, get_neighbor_finder, NeighborFinder
 from utils.data_processing import compute_time_statistics, get_data_node_classification
+from evaluation.evaluation import eval_node_classification
 
 random.seed(0)
 np.random.seed(0)
@@ -192,34 +193,34 @@ for i in range(args.n_runs):
   lr_criterion_eval = torch.nn.BCELoss()
 
 
-  def eval_epoch(src_l, dst_l, ts_l, label_l, batch_size, lr_model, tgan, num_layer=NODE_LAYER):
-    pred_prob = np.zeros(len(src_l))
-    loss = 0
-    num_instance = len(src_l)
-    num_batch = math.ceil(num_instance / batch_size)
-    with torch.no_grad():
-      lr_model.eval()
-      tgan.eval()
-      for k in range(num_batch):
-        s_idx = k * batch_size
-        e_idx = min(num_instance, s_idx + batch_size)
-        src_l_cut = src_l[s_idx:e_idx]
-        dst_l_cut = dst_l[s_idx:e_idx]
-        ts_l_cut = ts_l[s_idx:e_idx]
-        label_l_cut = label_l[s_idx:e_idx]
-        size = len(src_l_cut)
-        edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
-        src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut, dst_l_cut,
-                                                                        dst_l_cut, ts_l_cut,
-                                                                        edge_idxs_batch,
-                                                                        NUM_NEIGHBORS)
-        src_label = torch.from_numpy(label_l_cut).float().to(device)
-        lr_prob = lr_model(src_embed).sigmoid()
-        loss += lr_criterion_eval(lr_prob, src_label).item()
-        pred_prob[s_idx:e_idx] = lr_prob.cpu().numpy()
-
-    auc_roc = roc_auc_score(label_l, pred_prob)
-    return auc_roc, loss / num_instance
+  # def eval_epoch(src_l, dst_l, ts_l, label_l, batch_size, lr_model, tgan, num_layer=NODE_LAYER):
+  #   pred_prob = np.zeros(len(src_l))
+  #   loss = 0
+  #   num_instance = len(src_l)
+  #   num_batch = math.ceil(num_instance / batch_size)
+  #   with torch.no_grad():
+  #     lr_model.eval()
+  #     tgan.eval()
+  #     for k in range(num_batch):
+  #       s_idx = k * batch_size
+  #       e_idx = min(num_instance, s_idx + batch_size)
+  #       src_l_cut = src_l[s_idx:e_idx]
+  #       dst_l_cut = dst_l[s_idx:e_idx]
+  #       ts_l_cut = ts_l[s_idx:e_idx]
+  #       label_l_cut = label_l[s_idx:e_idx]
+  #       size = len(src_l_cut)
+  #       edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
+  #       src_embed, dst_embed, negative_embed = tgan.compute_temporal_embeddings(src_l_cut, dst_l_cut,
+  #                                                                       dst_l_cut, ts_l_cut,
+  #                                                                       edge_idxs_batch,
+  #                                                                       NUM_NEIGHBORS)
+  #       src_label = torch.from_numpy(label_l_cut).float().to(device)
+  #       lr_prob = lr_model(src_embed).sigmoid()
+  #       loss += lr_criterion_eval(lr_prob, src_label).item()
+  #       pred_prob[s_idx:e_idx] = lr_prob.cpu().numpy()
+  #
+  #   auc_roc = roc_auc_score(label_l, pred_prob)
+  #   return auc_roc, loss / num_instance
 
 
   val_aucs = []
@@ -268,10 +269,12 @@ for i in range(args.n_runs):
 
     # train_auc, train_loss = eval_epoch(train_src_l, train_dst_l, train_ts_l, train_label_l,
     #                                  BATCH_SIZE, lr_model, tgan)
-    val_auc, val_loss = eval_epoch(val_data.sources, val_data.destinations, val_data.timestamps,
-                                   val_data.labels,
-                                   BATCH_SIZE,
-                                   lr_model, tgn)
+    # val_auc, val_loss = eval_epoch(val_data.sources, val_data.destinations, val_data.timestamps,
+    #                                val_data.labels,
+    #                                BATCH_SIZE,
+    #                                lr_model, tgn)
+    val_auc = eval_node_classification(tgn, lr_model, val_data, full_data.edge_idxs, BATCH_SIZE,
+                                       n_neighbors=NUM_NEIGHBORS)
     val_aucs.append(val_auc)
 
     pickle.dump({
@@ -296,10 +299,12 @@ for i in range(args.n_runs):
     lr_model.load_state_dict(torch.load(best_model_path))
     logger.info(f'Loaded the best model at epoch {early_stopper.best_epoch} for inference')
     lr_model.eval()
-    test_auc, test_loss = eval_epoch(test_data.sources, test_data.destinations, test_data.timestamps,
-                                   test_data.labels,
-                                   BATCH_SIZE,
-                                   lr_model, tgn)
+    # test_auc, test_loss = eval_epoch(test_data.sources, test_data.destinations, test_data.timestamps,
+    #                                test_data.labels,
+    #                                BATCH_SIZE,
+    #                                lr_model, tgn)
+    test_auc = eval_node_classification(tgn, lr_model, test_data, full_data.edge_idxs, BATCH_SIZE,
+                                       n_neighbors=NUM_NEIGHBORS)
   else:
     test_auc = val_aucs[-1]
   pickle.dump({

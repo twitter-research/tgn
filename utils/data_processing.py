@@ -48,6 +48,7 @@ def get_data_node_classification(dataset_name, use_validation=False):
 
   return full_data, node_features, edge_features, train_data, val_data, test_data
 
+
 def get_data(dataset_name, different_new_nodes_between_val_and_test=False, randomize_features=False):
   ### Load data and train val test split
   graph_df = pd.read_csv('./data/ml_{}.csv'.format(dataset_name))

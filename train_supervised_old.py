@@ -157,8 +157,6 @@ for i in range(args.n_runs):
   num_batch = math.ceil(num_instance / BATCH_SIZE)
   logger.debug('Num of training instances: {}'.format(num_instance))
   logger.debug('Num of batches per epoch: {}'.format(num_batch))
-  idx_list = np.arange(num_instance)
-  np.random.shuffle(idx_list)
 
   logger.info('Loading saved TGN model')
   model_path = f'./saved_models/{args.prefix}-{DATA}.pth'
@@ -167,12 +165,10 @@ for i in range(args.n_runs):
   logger.info('TGN models loaded')
   logger.info('Start training node classification task')
 
-  lr_model = MLP(node_features.shape[1], drop=DROP_OUT)
-  lr_optimizer = torch.optim.Adam(lr_model.parameters(), lr=args.lr)
-  lr_model = lr_model.to(device)
-  idx_list = np.arange(len(train_data.sources))
-  lr_criterion = torch.nn.BCELoss()
-  lr_criterion_eval = torch.nn.BCELoss()
+  decoder = MLP(node_features.shape[1], drop=DROP_OUT)
+  decoder_optimizer = torch.optim.Adam(decoder.parameters(), lr=args.lr)
+  decoder = decoder.to(device)
+  decoder_loss_criterion = torch.nn.BCELoss()
 
   val_aucs = []
   train_losses = []
@@ -183,10 +179,9 @@ for i in range(args.n_runs):
     if USE_MEMORY:
       tgn.memory.__init_memory__()
 
-    lr_pred_prob = np.zeros(len(train_data.sources))
-    np.random.shuffle(idx_list)
+    pred_prob = np.zeros(len(train_data.sources))
     tgn = tgn.eval()
-    lr_model = lr_model.train()
+    decoder = decoder.train()
     loss = 0
     # num_batch
     for k in range(num_batch):
@@ -201,7 +196,7 @@ for i in range(args.n_runs):
 
       size = len(sources_batch)
 
-      lr_optimizer.zero_grad()
+      decoder_optimizer.zero_grad()
       with torch.no_grad():
         source_embedding, destination_embedding, _ = tgn.compute_temporal_embeddings(sources_batch,
                                                                                      destinations_batch,
@@ -210,15 +205,15 @@ for i in range(args.n_runs):
                                                                                      edge_idxs_batch,
                                                                                      NUM_NEIGHBORS)
 
-      src_label = torch.from_numpy(labels_batch).float().to(device)
-      lr_prob = lr_model(source_embedding).sigmoid()
-      lr_loss = lr_criterion(lr_prob, src_label)
-      lr_loss.backward()
-      lr_optimizer.step()
-      loss += lr_loss.item()
+      labels_batch_torch = torch.from_numpy(labels_batch).float().to(device)
+      pred = decoder(source_embedding).sigmoid()
+      decoder_loss = decoder_loss_criterion(pred, labels_batch_torch)
+      decoder_loss.backward()
+      decoder_optimizer.step()
+      loss += decoder_loss.item()
     train_losses.append(loss / num_batch)
 
-    val_auc = eval_node_classification(tgn, lr_model, val_data, full_data.edge_idxs, BATCH_SIZE,
+    val_auc = eval_node_classification(tgn, decoder, val_data, full_data.edge_idxs, BATCH_SIZE,
                                        n_neighbors=NUM_NEIGHBORS)
     val_aucs.append(val_auc)
 
@@ -236,17 +231,17 @@ for i in range(args.n_runs):
       logger.info('No improvement over {} epochs, stop training'.format(early_stopper.max_round))
       break
     else:
-      torch.save(lr_model.state_dict(), get_checkpoint_path(epoch))
+      torch.save(decoder.state_dict(), get_checkpoint_path(epoch))
 
   if args.tune:
     logger.info(f'Loading the best model at epoch {early_stopper.best_epoch}')
     best_model_path = get_checkpoint_path(early_stopper.best_epoch)
-    lr_model.load_state_dict(torch.load(best_model_path))
+    decoder.load_state_dict(torch.load(best_model_path))
     logger.info(f'Loaded the best model at epoch {early_stopper.best_epoch} for inference')
-    lr_model.eval()
+    decoder.eval()
 
-    test_auc = eval_node_classification(tgn, lr_model, test_data, full_data.edge_idxs, BATCH_SIZE,
-                                       n_neighbors=NUM_NEIGHBORS)
+    test_auc = eval_node_classification(tgn, decoder, test_data, full_data.edge_idxs, BATCH_SIZE,
+                                        n_neighbors=NUM_NEIGHBORS)
   else:
     test_auc = val_aucs[-1]
   pickle.dump({

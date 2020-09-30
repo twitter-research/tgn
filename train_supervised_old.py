@@ -1,4 +1,3 @@
-"""Unified interface to all dynamic graph model experiments"""
 import math
 import logging
 import time
@@ -9,12 +8,10 @@ import pickle
 from pathlib import Path
 
 import torch
-import pandas as pd
 import numpy as np
-from sklearn.metrics import roc_auc_score
 
 from model.tgn import TGN
-from utils.utils import EarlyStopMonitor, get_neighbor_finder, NeighborFinder, MLP
+from utils.utils import EarlyStopMonitor, get_neighbor_finder, MLP
 from utils.data_processing import compute_time_statistics, get_data_node_classification
 from evaluation.evaluation import eval_node_classification
 
@@ -62,12 +59,9 @@ parser.add_argument('--randomize_features', action='store_true',
                     help='Whether to randomize node features')
 parser.add_argument('--use_destination_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the destination node as part of the message')
-
-
-### Argument and global variables
 parser.add_argument('--n_neg', type=int, default=1)
-parser.add_argument('--tune', action='store_true',
-                    help='parameters tunning mode, use train-test split on training data only.')
+parser.add_argument('--use_validation', action='store_true',
+                    help='Whether to use a validation set')
 parser.add_argument('--new_node', action='store_true', help='model new node')
 
 try:
@@ -120,14 +114,17 @@ logger.addHandler(ch)
 logger.info(args)
 
 full_data, node_features, edge_features, train_data, val_data, test_data = \
-  get_data_node_classification(DATA, use_validation=args.tune)
+  get_data_node_classification(DATA, use_validation=args.use_validation)
 
 max_idx = max(full_data.unique_nodes)
 
 train_ngh_finder = get_neighbor_finder(train_data, uniform=UNIFORM, max_node_idx=max_idx)
 
-### Model initialize
-device = torch.device('cuda:{}'.format(GPU)) if torch.cuda.is_available() else "cpu"
+# Set device
+device_string = 'cuda:{}'.format(GPU) if torch.cuda.is_available() else 'cpu'
+device = torch.device(device_string)
+
+# Compute time statistics
 mean_time_shift_src, std_time_shift_src, mean_time_shift_dst, std_time_shift_dst = \
   compute_time_statistics(full_data.sources, full_data.destinations, full_data.timestamps)
 
@@ -155,6 +152,7 @@ for i in range(args.n_runs):
 
   num_instance = len(train_data.sources)
   num_batch = math.ceil(num_instance / BATCH_SIZE)
+  
   logger.debug('Num of training instances: {}'.format(num_instance))
   logger.debug('Num of batches per epoch: {}'.format(num_batch))
 
@@ -179,11 +177,10 @@ for i in range(args.n_runs):
     if USE_MEMORY:
       tgn.memory.__init_memory__()
 
-    pred_prob = np.zeros(len(train_data.sources))
     tgn = tgn.eval()
     decoder = decoder.train()
     loss = 0
-    # num_batch
+    
     for k in range(num_batch):
       s_idx = k * BATCH_SIZE
       e_idx = min(num_instance, s_idx + BATCH_SIZE)
@@ -220,11 +217,10 @@ for i in range(args.n_runs):
     pickle.dump({
       "val_aps": val_aucs,
       "train_losses": train_losses,
-      "epoch_times": 0.0,
+      "epoch_times": [0.0],
       "new_nodes_val_aps": [],
     }, open(results_path, "wb"))
 
-    # torch.save(lr_model.state_dict(), './saved_models/edge_{}_wkiki_node_class.pth'.format(DATA))
     logger.info(f'train loss: {loss / num_batch}, val auc: {val_auc}')
 
     if early_stopper.early_stop_check(val_auc):
@@ -243,7 +239,10 @@ for i in range(args.n_runs):
     test_auc = eval_node_classification(tgn, decoder, test_data, full_data.edge_idxs, BATCH_SIZE,
                                         n_neighbors=NUM_NEIGHBORS)
   else:
+    # If we are not using a validation set, the test performance is just the performance computed
+    # in the last epoch
     test_auc = val_aucs[-1]
+    
   pickle.dump({
     "val_aps": val_aucs,
     "test_ap": test_auc,

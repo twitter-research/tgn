@@ -29,7 +29,7 @@ parser.add_argument('--n_degree', type=int, default=10, help='Number of neighbor
 parser.add_argument('--n_head', type=int, default=2, help='Number of heads used in attention layer')
 parser.add_argument('--n_epoch', type=int, default=50, help='Number of epochs')
 parser.add_argument('--n_layer', type=int, default=1, help='Number of network layers')
-parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate')
+parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
 parser.add_argument('--patience', type=int, default=5, help='Patience for early stopping')
 parser.add_argument('--n_runs', type=int, default=1, help='Number of runs')
 parser.add_argument('--drop_out', type=float, default=0.1, help='Dropout probability')
@@ -173,6 +173,8 @@ for i in range(args.n_runs):
 
   early_stopper = EarlyStopMonitor(max_round=args.patience)
   for epoch in range(args.n_epoch):
+    start_epoch = time.time()
+    
     # Initialize memory of the model at each epoch
     if USE_MEMORY:
       tgn.memory.__init_memory__()
@@ -221,7 +223,7 @@ for i in range(args.n_runs):
       "new_nodes_val_aps": [],
     }, open(results_path, "wb"))
 
-    logger.info(f'train loss: {loss / num_batch}, val auc: {val_auc}')
+    logger.info(f'Epoch {epoch}: train loss: {loss / num_batch}, val auc: {val_auc}, time: {time.time() - start_epoch}')
 
     if early_stopper.early_stop_check(val_auc):
       logger.info('No improvement over {} epochs, stop training'.format(early_stopper.max_round))
@@ -229,7 +231,7 @@ for i in range(args.n_runs):
     else:
       torch.save(decoder.state_dict(), get_checkpoint_path(epoch))
 
-  if args.tune:
+  if args.use_validation:
     logger.info(f'Loading the best model at epoch {early_stopper.best_epoch}')
     best_model_path = get_checkpoint_path(early_stopper.best_epoch)
     decoder.load_state_dict(torch.load(best_model_path))

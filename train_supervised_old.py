@@ -288,7 +288,9 @@ for i in range(args.n_runs):
 
     # train_auc, train_loss = eval_epoch(train_src_l, train_dst_l, train_ts_l, train_label_l,
     #                                  BATCH_SIZE, lr_model, tgan)
-    val_auc, val_loss = eval_epoch(val_src_l, val_dst_l, val_ts_l, val_label_l, BATCH_SIZE,
+    val_auc, val_loss = eval_epoch(val_data.sources, val_data.destinations, val_data.timestamps,
+                                   val_data.labels,
+                                   BATCH_SIZE,
                                    lr_model, tgn)
     val_aucs.append(val_auc)
 
@@ -314,8 +316,10 @@ for i in range(args.n_runs):
     lr_model.load_state_dict(torch.load(best_model_path))
     logger.info(f'Loaded the best model at epoch {early_stopper.best_epoch} for inference')
     lr_model.eval()
-    test_auc, test_loss = eval_epoch(test_src_l, test_dst_l, test_ts_l, test_label_l, BATCH_SIZE,
-                                     lr_model, tgn)
+    test_auc, test_loss = eval_epoch(test_data.sources, test_data.destinations, test_data.timestamps,
+                                   test_data.labels,
+                                   BATCH_SIZE,
+                                   lr_model, tgn)
   else:
     test_auc = val_aucs[-1]
   pickle.dump({

@@ -194,7 +194,7 @@ for i in range(args.n_runs):
 
   tgn = tgn.to(device)
 
-  num_instance = len(train_src_l)
+  num_instance = len(train_data.sources)
   num_batch = math.ceil(num_instance / BATCH_SIZE)
   logger.debug('Num of training instances: {}'.format(num_instance))
   logger.debug('Num of batches per epoch: {}'.format(num_batch))
@@ -211,7 +211,7 @@ for i in range(args.n_runs):
   lr_model = LR(node_features.shape[1], drop=DROP_OUT)
   lr_optimizer = torch.optim.Adam(lr_model.parameters(), lr=args.lr)
   lr_model = lr_model.to(device)
-  idx_list = np.arange(len(train_src_l))
+  idx_list = np.arange(len(train_data.sources))
   lr_criterion = torch.nn.BCELoss()
   lr_criterion_eval = torch.nn.BCELoss()
 
@@ -264,10 +264,10 @@ for i in range(args.n_runs):
     for k in range(num_batch):
       s_idx = k * BATCH_SIZE
       e_idx = min(num_instance - 1, s_idx + BATCH_SIZE)
-      src_l_cut = train_src_l[s_idx:e_idx]
-      dst_l_cut = train_dst_l[s_idx:e_idx]
-      ts_l_cut = train_ts_l[s_idx:e_idx]
-      label_l_cut = train_label_l[s_idx:e_idx]
+      src_l_cut = train_data.sources[s_idx:e_idx]
+      dst_l_cut = train_data.destinations[s_idx:e_idx]
+      ts_l_cut = train_data.timestamps[s_idx:e_idx]
+      label_l_cut = train_data.labels[s_idx:e_idx]
       edge_idxs_batch = e_idx_l[s_idx: e_idx]
       size = len(src_l_cut)
 

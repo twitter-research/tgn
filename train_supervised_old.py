@@ -268,7 +268,7 @@ for i in range(args.n_runs):
       dst_l_cut = train_data.destinations[s_idx:e_idx]
       ts_l_cut = train_data.timestamps[s_idx:e_idx]
       label_l_cut = train_data.labels[s_idx:e_idx]
-      edge_idxs_batch = e_idx_l[s_idx: e_idx]
+      edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
       size = len(src_l_cut)
 
       lr_optimizer.zero_grad()

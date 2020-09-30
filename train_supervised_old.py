@@ -223,7 +223,6 @@ for i in range(args.n_runs):
   lr_model = LR(node_features.shape[1], drop=DROP_OUT)
   lr_optimizer = torch.optim.Adam(lr_model.parameters(), lr=args.lr)
   lr_model = lr_model.to(device)
-  tgn.ngh_finder = full_ngh_finder
   idx_list = np.arange(len(train_src_l))
   lr_criterion = torch.nn.BCELoss()
   lr_criterion_eval = torch.nn.BCELoss()

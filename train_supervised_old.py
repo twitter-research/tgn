@@ -202,7 +202,7 @@ for i in range(args.n_runs):
       tgan.eval()
       for k in range(num_batch):
         s_idx = k * batch_size
-        e_idx = min(num_instance - 1, s_idx + batch_size)
+        e_idx = min(num_instance, s_idx + batch_size)
         src_l_cut = src_l[s_idx:e_idx]
         dst_l_cut = dst_l[s_idx:e_idx]
         ts_l_cut = ts_l[s_idx:e_idx]
@@ -239,23 +239,27 @@ for i in range(args.n_runs):
     # num_batch
     for k in range(num_batch):
       s_idx = k * BATCH_SIZE
-      e_idx = min(num_instance - 1, s_idx + BATCH_SIZE)
-      src_l_cut = train_data.sources[s_idx:e_idx]
-      dst_l_cut = train_data.destinations[s_idx:e_idx]
-      ts_l_cut = train_data.timestamps[s_idx:e_idx]
-      label_l_cut = train_data.labels[s_idx:e_idx]
+      e_idx = min(num_instance, s_idx + BATCH_SIZE)
+
+      sources_batch = train_data.sources[s_idx: e_idx]
+      destinations_batch = train_data.destinations[s_idx: e_idx]
+      timestamps_batch = train_data.timestamps[s_idx: e_idx]
       edge_idxs_batch = full_data.edge_idxs[s_idx: e_idx]
-      size = len(src_l_cut)
+      labels_batch = train_data.labels[s_idx: e_idx]
+
+      size = len(sources_batch)
 
       lr_optimizer.zero_grad()
       with torch.no_grad():
-        src_embed, dst_embed, negative_embed = tgn.compute_temporal_embeddings(src_l_cut, dst_l_cut,
-                                                                       dst_l_cut, ts_l_cut,
-                                                                       edge_idxs_batch,
-                                                                       NUM_NEIGHBORS)
+        source_embedding, destination_embedding, _ = tgn.compute_temporal_embeddings(sources_batch,
+                                                                                     destinations_batch,
+                                                                                     destinations_batch,
+                                                                                     timestamps_batch,
+                                                                                     edge_idxs_batch,
+                                                                                     NUM_NEIGHBORS)
 
-      src_label = torch.from_numpy(label_l_cut).float().to(device)
-      lr_prob = lr_model(src_embed).sigmoid()
+      src_label = torch.from_numpy(labels_batch).float().to(device)
+      lr_prob = lr_model(source_embedding).sigmoid()
       lr_loss = lr_criterion(lr_prob, src_label)
       lr_loss.backward()
       lr_optimizer.step()

@@ -19,7 +19,9 @@ class TGN(torch.nn.Module):
                memory_dimension=500, embedding_module_type="graph_attention",
                message_function="mlp",
                mean_time_shift_src=0, std_time_shift_src=1, mean_time_shift_dst=0,
-               std_time_shift_dst=1, n_neighbors=None, aggregator_type="last", use_destination_embedding_in_message=False):
+               std_time_shift_dst=1, n_neighbors=None, aggregator_type="last", 
+               use_destination_embedding_in_message=False,
+               use_source_embedding_in_message=False):
     super(TGN, self).__init__()
 
     self.n_layers = n_layers
@@ -36,6 +38,7 @@ class TGN(torch.nn.Module):
     self.embedding_dimension = self.n_node_features
     self.n_neighbors = n_neighbors
     self.use_destination_embedding_in_message = use_destination_embedding_in_message
+    self.use_source_embedding_in_message = use_source_embedding_in_message
 
     self.use_memory = use_memory
     self.time_encoder = TimeEncode(dimension=self.n_node_features)
@@ -234,7 +237,7 @@ class TGN(torch.nn.Module):
                        destination_node_embedding, edge_times, edge_idxs,):
     edge_times = torch.from_numpy(edge_times).float().to(self.device)
     edge_features = self.edge_raw_features[edge_idxs]
-    source_memory = self.memory.get_memory(source_nodes)
+    source_memory = self.memory.get_memory(source_nodes) if not self.use_source_embedding_in_message else source_node_embedding
     destination_memory = self.memory.get_memory(destination_nodes) if not self.use_destination_embedding_in_message else destination_node_embedding
     source_time_delta = edge_times - self.memory.last_update[source_nodes]
     source_time_delta_encoding = self.time_encoder(source_time_delta.unsqueeze(dim=1)).view(len(

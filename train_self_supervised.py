@@ -56,6 +56,8 @@ parser.add_argument('--randomize_features', action='store_true',
                     help='Whether to randomize node features')
 parser.add_argument('--use_destination_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the destination node as part of the message')
+parser.add_argument('--use_source_embedding_in_message', action='store_true',
+                    help='Whether to use the embedding of the source node as part of the message')
 
 
 try:
@@ -149,7 +151,8 @@ for i in range(args.n_runs):
             aggregator_type=args.aggregator, n_neighbors=NUM_NEIGHBORS,
             mean_time_shift_src=mean_time_shift_src, std_time_shift_src=std_time_shift_src,
             mean_time_shift_dst=mean_time_shift_dst, std_time_shift_dst=std_time_shift_dst,
-            use_destination_embedding_in_message=args.use_destination_embedding_in_message)
+            use_destination_embedding_in_message=args.use_destination_embedding_in_message,
+            use_source_embedding_in_message=args.use_source_embedding_in_message)
   criterion = torch.nn.BCELoss()
   optimizer = torch.optim.Adam(tgn.parameters(), lr=LEARNING_RATE)
   tgn = tgn.to(device)

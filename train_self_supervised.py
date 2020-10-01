@@ -41,6 +41,8 @@ parser.add_argument('--embedding_module', type=str, default="graph_attention", c
   "graph_attention", "graph_sum", "identity", "time"], help='Type of embedding module')
 parser.add_argument('--message_function', type=str, default="identity", choices=[
   "mlp", "identity"], help='Type of message function')
+parser.add_argument('--memory_updater', type=str, default="gru", choices=[
+  "gru", "rnn"], help='Type of memory updater')
 parser.add_argument('--aggregator', type=str, default="last", help='Type of message '
                                                                         'aggregator')
 parser.add_argument('--memory_update_at_end', action='store_true',
@@ -58,6 +60,8 @@ parser.add_argument('--use_destination_embedding_in_message', action='store_true
                     help='Whether to use the embedding of the destination node as part of the message')
 parser.add_argument('--use_source_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the source node as part of the message')
+parser.add_argument('--dyrep', action='store_true',
+                    help='Whether to run the dyrep model')
 
 
 try:
@@ -148,11 +152,14 @@ for i in range(args.n_runs):
             memory_update_at_start=not args.memory_update_at_end,
             embedding_module_type=args.embedding_module,
             message_function=args.message_function,
-            aggregator_type=args.aggregator, n_neighbors=NUM_NEIGHBORS,
+            aggregator_type=args.aggregator,
+            memory_updater_type=args.memory_updater,
+            n_neighbors=NUM_NEIGHBORS,
             mean_time_shift_src=mean_time_shift_src, std_time_shift_src=std_time_shift_src,
             mean_time_shift_dst=mean_time_shift_dst, std_time_shift_dst=std_time_shift_dst,
             use_destination_embedding_in_message=args.use_destination_embedding_in_message,
-            use_source_embedding_in_message=args.use_source_embedding_in_message)
+            use_source_embedding_in_message=args.use_source_embedding_in_message,
+            dyrep=args.dyrep)
   criterion = torch.nn.BCELoss()
   optimizer = torch.optim.Adam(tgn.parameters(), lr=LEARNING_RATE)
   tgn = tgn.to(device)

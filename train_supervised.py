@@ -23,13 +23,13 @@ torch.manual_seed(0)
 parser = argparse.ArgumentParser('TGN self-supervised training')
 parser.add_argument('-d', '--data', type=str, help='Dataset name (eg. wikipedia or reddit)',
                     default='wikipedia')
-parser.add_argument('--bs', type=int, default=200, help='Batch_size')
+parser.add_argument('--bs', type=int, default=100, help='Batch_size')
 parser.add_argument('--prefix', type=str, default='', help='Prefix to name the checkpoints')
 parser.add_argument('--n_degree', type=int, default=10, help='Number of neighbors to sample')
 parser.add_argument('--n_head', type=int, default=2, help='Number of heads used in attention layer')
-parser.add_argument('--n_epoch', type=int, default=50, help='Number of epochs')
+parser.add_argument('--n_epoch', type=int, default=10, help='Number of epochs')
 parser.add_argument('--n_layer', type=int, default=1, help='Number of network layers')
-parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
 parser.add_argument('--patience', type=int, default=5, help='Patience for early stopping')
 parser.add_argument('--n_runs', type=int, default=1, help='Number of runs')
 parser.add_argument('--drop_out', type=float, default=0.1, help='Dropout probability')
@@ -59,6 +59,8 @@ parser.add_argument('--randomize_features', action='store_true',
                     help='Whether to randomize node features')
 parser.add_argument('--use_destination_embedding_in_message', action='store_true',
                     help='Whether to use the embedding of the destination node as part of the message')
+parser.add_argument('--use_source_embedding_in_message', action='store_true',
+                    help='Whether to use the embedding of the source node as part of the message')
 parser.add_argument('--n_neg', type=int, default=1)
 parser.add_argument('--use_validation', action='store_true',
                     help='Whether to use a validation set')
@@ -146,7 +148,8 @@ for i in range(args.n_runs):
             aggregator_type=args.aggregator, n_neighbors=NUM_NEIGHBORS,
             mean_time_shift_src=mean_time_shift_src, std_time_shift_src=std_time_shift_src,
             mean_time_shift_dst=mean_time_shift_dst, std_time_shift_dst=std_time_shift_dst,
-            use_destination_embedding_in_message=args.use_destination_embedding_in_message)
+            use_destination_embedding_in_message=args.use_destination_embedding_in_message,
+            use_source_embedding_in_message=args.use_source_embedding_in_message)
 
   tgn = tgn.to(device)
 
@@ -224,7 +227,8 @@ for i in range(args.n_runs):
     }, open(results_path, "wb"))
 
     logger.info(f'Epoch {epoch}: train loss: {loss / num_batch}, val auc: {val_auc}, time: {time.time() - start_epoch}')
-
+  
+  if args.use_validation:
     if early_stopper.early_stop_check(val_auc):
       logger.info('No improvement over {} epochs, stop training'.format(early_stopper.max_round))
       break
@@ -249,7 +253,7 @@ for i in range(args.n_runs):
     "val_aps": val_aucs,
     "test_ap": test_auc,
     "train_losses": train_losses,
-    "epoch_times": 0.0,
+    "epoch_times": [0.0],
     "new_nodes_val_aps": [],
     "new_node_test_ap": 0,
   }, open(results_path, "wb"))

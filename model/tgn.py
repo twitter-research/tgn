@@ -136,12 +136,10 @@ class TGN(torch.nn.Module):
       source_time_diffs = (source_time_diffs - self.mean_time_shift_src) / self.std_time_shift_src
       destination_time_diffs = torch.LongTensor(edge_times).to(self.device) - last_update[
         destination_nodes].long()
-      destination_time_diffs = (
-                                   destination_time_diffs - self.mean_time_shift_dst) / self.std_time_shift_dst
+      destination_time_diffs = (destination_time_diffs - self.mean_time_shift_dst) / self.std_time_shift_dst
       negative_time_diffs = torch.LongTensor(edge_times).to(self.device) - last_update[
         negative_nodes].long()
-      negative_time_diffs = (
-                                negative_time_diffs - self.mean_time_shift_dst) / self.std_time_shift_dst
+      negative_time_diffs = (negative_time_diffs - self.mean_time_shift_dst) / self.std_time_shift_dst
 
       time_diffs = torch.cat([source_time_diffs, destination_time_diffs, negative_time_diffs],
                              dim=0)
@@ -251,14 +249,14 @@ class TGN(torch.nn.Module):
     return updated_memory, updated_last_update
 
   def get_raw_messages(self, source_nodes, source_node_embedding, destination_nodes,
-                       destination_node_embedding, edge_times, edge_idxs, ):
+                       destination_node_embedding, edge_times, edge_idxs):
     edge_times = torch.from_numpy(edge_times).float().to(self.device)
     edge_features = self.edge_raw_features[edge_idxs]
 
     source_memory = self.memory.get_memory(source_nodes) if not \
       self.use_source_embedding_in_message else source_node_embedding
     destination_memory = self.memory.get_memory(destination_nodes) if \
-        not self.use_destination_embedding_in_message else destination_node_embedding
+      not self.use_destination_embedding_in_message else destination_node_embedding
 
     source_time_delta = edge_times - self.memory.last_update[source_nodes]
     source_time_delta_encoding = self.time_encoder(source_time_delta.unsqueeze(dim=1)).view(len(

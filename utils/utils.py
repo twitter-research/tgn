@@ -18,6 +18,23 @@ class MergeLayer(torch.nn.Module):
     return self.fc2(h)
 
 
+class MLP(torch.nn.Module):
+  def __init__(self, dim, drop=0.3):
+    super().__init__()
+    self.fc_1 = torch.nn.Linear(dim, 80)
+    self.fc_2 = torch.nn.Linear(80, 10)
+    self.fc_3 = torch.nn.Linear(10, 1)
+    self.act = torch.nn.ReLU()
+    self.dropout = torch.nn.Dropout(p=drop, inplace=False)
+
+  def forward(self, x):
+    x = self.act(self.fc_1(x))
+    x = self.dropout(x)
+    x = self.act(self.fc_2(x))
+    x = self.dropout(x)
+    return self.fc_3(x).squeeze(dim=1)
+
+
 class EarlyStopMonitor(object):
   def __init__(self, max_round=3, higher_better=True, tolerance=1e-10):
     self.max_round = max_round
@@ -71,8 +88,8 @@ class RandEdgeSampler(object):
     self.random_state = np.random.RandomState(self.seed)
 
 
-def get_neighbor_finder(data, uniform):
-  max_node_idx = max(data.sources.max(), data.destinations.max())
+def get_neighbor_finder(data, uniform, max_node_idx=None):
+  max_node_idx = max(data.sources.max(), data.destinations.max()) if max_node_idx is None else max_node_idx
   adj_list = [[] for _ in range(max_node_idx + 1)]
   for source, destination, edge_idx, timestamp in zip(data.sources, data.destinations,
                                                       data.edge_idxs,

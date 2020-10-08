@@ -44,3 +44,33 @@ def eval_edge_prediction(model, negative_edge_sampler, data, n_neighbors, batch_
       val_auc.append(roc_auc_score(true_label, pred_score))
 
   return np.mean(val_ap), np.mean(val_auc)
+
+
+def eval_node_classification(tgn, decoder, data, edge_idxs, batch_size, n_neighbors):
+  pred_prob = np.zeros(len(data.sources))
+  num_instance = len(data.sources)
+  num_batch = math.ceil(num_instance / batch_size)
+
+  with torch.no_grad():
+    decoder.eval()
+    tgn.eval()
+    for k in range(num_batch):
+      s_idx = k * batch_size
+      e_idx = min(num_instance, s_idx + batch_size)
+
+      sources_batch = data.sources[s_idx: e_idx]
+      destinations_batch = data.destinations[s_idx: e_idx]
+      timestamps_batch = data.timestamps[s_idx:e_idx]
+      edge_idxs_batch = edge_idxs[s_idx: e_idx]
+
+      source_embedding, destination_embedding, _ = tgn.compute_temporal_embeddings(sources_batch,
+                                                                                   destinations_batch,
+                                                                                   destinations_batch,
+                                                                                   timestamps_batch,
+                                                                                   edge_idxs_batch,
+                                                                                   n_neighbors)
+      pred_prob_batch = decoder(source_embedding).sigmoid()
+      pred_prob[s_idx: e_idx] = pred_prob_batch.cpu().numpy()
+
+  auc_roc = roc_auc_score(data.labels, pred_prob)
+  return auc_roc

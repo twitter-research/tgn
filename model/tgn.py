@@ -7,7 +7,7 @@ from utils.utils import MergeLayer
 from modules.memory import Memory
 from modules.message_aggregator import get_message_aggregator
 from modules.message_function import get_message_function
-from modules.memory_updater import GRUMemoryUpdater
+from modules.memory_updater import get_memory_updater
 from modules.embedding_module import get_embedding_module
 from model.time_encoding import TimeEncode
 
@@ -19,7 +19,11 @@ class TGN(torch.nn.Module):
                memory_dimension=500, embedding_module_type="graph_attention",
                message_function="mlp",
                mean_time_shift_src=0, std_time_shift_src=1, mean_time_shift_dst=0,
-               std_time_shift_dst=1, n_neighbors=None, aggregator_type="last"):
+               std_time_shift_dst=1, n_neighbors=None, aggregator_type="last",
+               memory_updater_type="gru",
+               use_destination_embedding_in_message=False,
+               use_source_embedding_in_message=False,
+               dyrep=False):
     super(TGN, self).__init__()
 
     self.n_layers = n_layers
@@ -35,6 +39,10 @@ class TGN(torch.nn.Module):
     self.n_edge_features = self.edge_raw_features.shape[1]
     self.embedding_dimension = self.n_node_features
     self.n_neighbors = n_neighbors
+    self.embedding_module_type = embedding_module_type
+    self.use_destination_embedding_in_message = use_destination_embedding_in_message
+    self.use_source_embedding_in_message = use_source_embedding_in_message
+    self.dyrep = dyrep
 
     self.use_memory = use_memory
     self.time_encoder = TimeEncode(dimension=self.n_node_features)
@@ -49,7 +57,7 @@ class TGN(torch.nn.Module):
       self.memory_dimension = memory_dimension
       self.memory_update_at_start = memory_update_at_start
       raw_message_dimension = 2 * self.memory_dimension + self.n_edge_features + \
-                           self.time_encoder.dimension
+                              self.time_encoder.dimension
       message_dimension = message_dimension if message_function != "identity" else raw_message_dimension
       self.memory = Memory(n_nodes=self.n_nodes,
                            memory_dimension=self.memory_dimension,
@@ -61,27 +69,29 @@ class TGN(torch.nn.Module):
       self.message_function = get_message_function(module_type=message_function,
                                                    raw_message_dimension=raw_message_dimension,
                                                    message_dimension=message_dimension)
-      self.memory_updater = GRUMemoryUpdater(memory=self.memory,
-                                             message_dimension=message_dimension,
-                                             memory_dimension=self.memory_dimension, device=device)
+      self.memory_updater = get_memory_updater(module_type=memory_updater_type,
+                                               memory=self.memory,
+                                               message_dimension=message_dimension,
+                                               memory_dimension=self.memory_dimension,
+                                               device=device)
 
     self.embedding_module_type = embedding_module_type
 
     self.embedding_module = get_embedding_module(module_type=embedding_module_type,
-                                                  node_features=self.node_raw_features,
-                                                  edge_features=self.edge_raw_features,
-                                                  memory=self.memory,
-                                                  neighbor_finder=self.neighbor_finder,
-                                                  time_encoder=self.time_encoder,
-                                                  n_layers=self.n_layers,
-                                                  n_node_features=self.n_node_features,
-                                                  n_edge_features=self.n_edge_features,
-                                                  n_time_features=self.n_node_features,
-                                                  embedding_dimension=self.embedding_dimension,
-                                                  device=self.device,
-                                                  n_heads=n_heads, dropout=dropout,
-                                                  use_memory=use_memory,
-                                                  n_neighbors=self.n_neighbors)
+                                                 node_features=self.node_raw_features,
+                                                 edge_features=self.edge_raw_features,
+                                                 memory=self.memory,
+                                                 neighbor_finder=self.neighbor_finder,
+                                                 time_encoder=self.time_encoder,
+                                                 n_layers=self.n_layers,
+                                                 n_node_features=self.n_node_features,
+                                                 n_edge_features=self.n_edge_features,
+                                                 n_time_features=self.n_node_features,
+                                                 embedding_dimension=self.embedding_dimension,
+                                                 device=self.device,
+                                                 n_heads=n_heads, dropout=dropout,
+                                                 use_memory=use_memory,
+                                                 n_neighbors=self.n_neighbors)
 
     # MLP to compute probability on an edge given two node embeddings
     self.affinity_score = MergeLayer(self.n_node_features, self.n_node_features,
@@ -151,6 +161,10 @@ class TGN(torch.nn.Module):
         # Persist the updates to the memory only for sources and destinations (since now we have
         # new messages for them)
         self.update_memory(positives, self.memory.messages)
+
+        assert torch.allclose(memory[positives], self.memory.get_memory(positives), atol=1e-5), \
+          "Something wrong in how the memory was updated"
+
         # Remove messages for the positives since we have already updated the memory using them
         self.memory.clear_messages(positives)
 
@@ -170,6 +184,11 @@ class TGN(torch.nn.Module):
       else:
         self.update_memory(unique_sources, source_id_to_messages)
         self.update_memory(unique_destinations, destination_id_to_messages)
+
+      if self.dyrep:
+        source_node_embedding = memory[source_nodes]
+        destination_node_embedding = memory[destination_nodes]
+        negative_node_embedding = memory[negative_nodes]
 
     return source_node_embedding, destination_node_embedding, negative_node_embedding
 
@@ -233,8 +252,12 @@ class TGN(torch.nn.Module):
                        destination_node_embedding, edge_times, edge_idxs):
     edge_times = torch.from_numpy(edge_times).float().to(self.device)
     edge_features = self.edge_raw_features[edge_idxs]
-    source_memory = self.memory.get_memory(source_nodes)
-    destination_memory = self.memory.get_memory(destination_nodes)
+
+    source_memory = self.memory.get_memory(source_nodes) if not \
+      self.use_source_embedding_in_message else source_node_embedding
+    destination_memory = self.memory.get_memory(destination_nodes) if \
+      not self.use_destination_embedding_in_message else destination_node_embedding
+
     source_time_delta = edge_times - self.memory.last_update[source_nodes]
     source_time_delta_encoding = self.time_encoder(source_time_delta.unsqueeze(dim=1)).view(len(
       source_nodes), -1)

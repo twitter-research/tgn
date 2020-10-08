@@ -42,8 +42,8 @@ Download the sample datasets (eg. wikipedia and reddit) from
 We use the dense `npy` format to save the features in binary format. If edge features or nodes 
 features are absent, they will be replaced by a vector of zeros. 
 ```{bash}
-python utils/preprocess_data.py --data wikipedia
-python utils/preprocess_data.py --data reddit
+python utils/preprocess_data.py --data wikipedia --bipartite
+python utils/preprocess_data.py --data reddit --bipartite
 ```
 
 
@@ -52,6 +52,16 @@ python utils/preprocess_data.py --data reddit
 
 Self-supervised learning using the link prediction task:
 ```{bash}
+# TGN-attn: Supervised learning on the wikipedia dataset
+python train_supervised.py --use_memory --prefix tgn-attn --n_runs 10
+
+# TGN-attn-reddit: Supervised learning on the reddit dataset
+python train_supervised.py -d reddit --use_memory --prefix tgn-attn-reddit --n_runs 10
+```
+
+Supervised learning on dynamic node classification (this requires a trained model from 
+the self-supervised task, by eg. running the commands above):
+```{bash}
 # TGN-attn: self-supervised learning on the wikipedia dataset
 python train_self_supervised.py --use_memory --prefix tgn-attn --n_runs 10
 
@@ -59,10 +69,48 @@ python train_self_supervised.py --use_memory --prefix tgn-attn --n_runs 10
 python train_self_supervised.py -d reddit --use_memory --prefix tgn-attn-reddit --n_runs 10
 ```
 
-### Ablation Study
-Commands to replicate all results in the ablation study.
+### Baselines
 
-Ablation study over different models:
+```{bash}
+### Wikipedia Self-supervised
+
+# Jodie
+python train_self_supervised.py --use_memory --memory_updater rnn --embedding_module time --prefix jodie_rnn --n_runs 10
+
+# DyRep
+python train_self_supervised.py --use_memory --memory_updater rnn --dyrep --use_destination_embedding_in_message --prefix dyrep_rnn --n_runs 10
+
+
+### Reddit Self-supervised
+
+# Jodie
+python train_self_supervised.py -d reddit --use_memory --memory_updater rnn --embedding_module time --prefix jodie_rnn_reddit --n_runs 10
+
+# DyRep
+python train_self_supervised.py -d reddit --use_memory --memory_updater rnn --dyrep --use_destination_embedding_in_message --prefix dyrep_rnn_reddit --n_runs 10
+
+
+### Wikipedia Supervised
+
+# Jodie
+python train_supervised.py --use_memory --memory_updater rnn --embedding_module time --prefix jodie_rnn --n_runs 10
+
+# DyRep
+python train_supervised.py --use_memory --memory_updater rnn --dyrep --use_destination_embedding_in_message --prefix dyrep_rnn --n_runs 10
+
+
+### Reddit Supervised
+
+# Jodie
+python train_supervised.py -d reddit --use_memory --memory_updater rnn --embedding_module time --prefix jodie_rnn_reddit --n_runs 10
+
+# DyRep
+python train_supervised.py -d reddit --use_memory --memory_updater rnn  --dyrep --use_destination_embedding_in_message --prefix dyrep_rnn_reddit --n_runs 10
+```
+
+
+### Ablation Study
+Commands to replicate all results in the ablation study over different modules:
 ```{bash}
 # TGN-2l
 python train_self_supervised.py --use_memory --n_layer 2 --prefix tgn-2l --n_runs 10 
@@ -81,34 +129,6 @@ python train_self_supervised.py --use_memory --embedding_module graph_sum --pref
 
 # TGN-mean
 python train_self_supervised.py --use_memory --aggregator mean --prefix tgn-mean --n_runs 10
-```
-
-Ablation study over different training strategies:
-```{bash}
-# TGN-id-s1
-python train_self_supervised.py --use_memory --embedding_module identity --prefix TGN-id-s1 --n_runs 10 
-
-# TGN-id-s5
-python train_self_supervised.py --bs 40 --use_memory --embedding_module identity --backprop_every 5 --prefix TGN-id-s5 --n_runs 10 
-
-# TGN-id-e1
-python train_self_supervised.py --use_memory --embedding_module identity --memory_update_at_end --prefix TGN-id-e1 --n_runs 10 
-
-# TGN-id-e5
-python train_self_supervised.py --bs 40 --use_memory --embedding_module identity --backprop_every 5 --memory_update_at_end --prefix TGN-id-e5 --n_runs 10
-
-# TGN-attn-s1
-python train_self_supervised.py --use_memory --prefix TGN-attn-s1 --n_runs 10 
-
-# TGN-attn-s5
-python train_self_supervised.py --bs 40 --use_memory --backprop_every 5 --prefix TGN-attn-s5 --n_runs 10 
-
-# TGN-attn-e1
-python train_self_supervised.py --use_memory --memory_update_at_end --prefix TGN-attn-e1 --n_runs 10 
-
-# TGN-attn-e5
-python train_self_supervised.py --bs 40 --use_memory --backprop_every 5 --memory_update_at_end --prefix TGN-attn-e5 --n_runs 10
-
 ```
 
 
@@ -133,6 +153,7 @@ optional arguments:
   --use_memory                 Whether to use a memory for the nodes
   --embedding_module           Type of the embedding module
   --message_function           Type of the message function
+  --memory_updater             Type of the memory updater
   --aggregator                 Type of the message aggregator
   --memory_update_at_the_end   Whether to update the memory at the end or at the start of the batch
   --message_dim                Dimension of the messages
@@ -140,10 +161,11 @@ optional arguments:
   --backprop_every             Number of batches to process before performing backpropagation
   --different_new_nodes        Whether to use different unseen nodes for validation and testing
   --uniform                    Whether to sample the temporal neighbors uniformly (or instead take the most recent ones)
+  --randomize_features         Whether to randomize node features
+  --dyrep                      Whether to run the model as DyRep
 ```
 
 ## TODOs 
-* Add code for training on the downstream node-classification task
 * Make code memory efficient: for the sake of simplicity, the memory module of the TGN model is 
 implemented as a parameter (so that it is stored and loaded together of the model). However, this 
 does not need to be the case, and 

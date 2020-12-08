@@ -53,7 +53,7 @@ python utils/preprocess_data.py --data reddit --bipartite
 Self-supervised learning using the link prediction task:
 ```{bash}
 # TGN-attn: Supervised learning on the wikipedia dataset
-python train_self_supervised --use_memory --prefix tgn-attn --n_runs 10
+python train_self_supervised.py --use_memory --prefix tgn-attn --n_runs 10
 
 # TGN-attn-reddit: Supervised learning on the reddit dataset
 python train_self_supervised.py -d reddit --use_memory --prefix tgn-attn-reddit --n_runs 10

@@ -26,7 +26,7 @@ class EmbeddingModule(nn.Module):
 
   def compute_embedding(self, memory, source_nodes, timestamps, n_layers, n_neighbors=20, time_diffs=None,
                         use_time_proj=True):
-    pass
+    return NotImplemented
 
 
 class IdentityEmbedding(EmbeddingModule):
@@ -141,7 +141,7 @@ class GraphEmbedding(EmbeddingModule):
   def aggregate(self, n_layers, source_node_features, source_nodes_time_embedding,
                 neighbor_embeddings,
                 edge_time_embeddings, edge_features, mask):
-    return None
+    return NotImplemented
 
 
 class GraphSumEmbedding(GraphEmbedding):

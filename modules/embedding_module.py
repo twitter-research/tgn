@@ -123,7 +123,7 @@ class GraphEmbedding(EmbeddingModule):
       neighbors = neighbors.flatten()
       neighbor_embeddings = self.compute_embedding(memory,
                                                    neighbors,
-                                                   edge_times.flatten(),
+                                                   np.repeat(timestamps, n_neighbors),
                                                    n_layers=n_layers - 1,
                                                    n_neighbors=n_neighbors)
 

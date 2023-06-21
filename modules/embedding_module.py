@@ -101,6 +101,12 @@ class GraphEmbedding(EmbeddingModule):
       return source_node_features
     else:
 
+      source_node_conv_embeddings = self.compute_embedding(memory,
+                                                           source_nodes,
+                                                           timestamps,
+                                                           n_layers=n_layers - 1,
+                                                           n_neighbors=n_neighbors)
+
       neighbors, edge_idxs, edge_times = self.neighbor_finder.get_temporal_neighbor(
         source_nodes,
         timestamps,
@@ -129,7 +135,7 @@ class GraphEmbedding(EmbeddingModule):
 
       mask = neighbors_torch == 0
 
-      source_embedding = self.aggregate(n_layers, source_node_features,
+      source_embedding = self.aggregate(n_layers, source_node_conv_embeddings,
                                         source_nodes_time_embedding,
                                         neighbor_embeddings,
                                         edge_time_embeddings,

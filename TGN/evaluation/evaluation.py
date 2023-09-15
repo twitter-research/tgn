@@ -11,7 +11,7 @@ def eval_edge_prediction(model, negative_edge_sampler, data, n_neighbors, batch_
   assert negative_edge_sampler.seed is not None
   negative_edge_sampler.reset_random_state()
 
-  val_ap, val_auc = [], []
+  val_ap, val_auc, val_acc = [], [], []
   with torch.no_grad():
     model = model.eval()
     # While usually the test batch size is as big as it fits in memory, here we keep it the same
@@ -39,11 +39,13 @@ def eval_edge_prediction(model, negative_edge_sampler, data, n_neighbors, batch_
 
       pred_score = np.concatenate([(pos_prob).cpu().numpy(), (neg_prob).cpu().numpy()])
       true_label = np.concatenate([np.ones(size), np.zeros(size)])
+      pred_label = (pred_score >= 0.5).flatten().astype(float)
 
       val_ap.append(average_precision_score(true_label, pred_score))
       val_auc.append(roc_auc_score(true_label, pred_score))
+      val_acc.append((pred_label == true_label).mean())
 
-  return np.mean(val_ap), np.mean(val_auc)
+  return np.mean(val_ap), np.mean(val_auc), np.mean(val_acc)
 
 
 def eval_node_classification(tgn, decoder, data, edge_idxs, batch_size, n_neighbors):

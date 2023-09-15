@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from utils.utils import MergeLayer
+from TGN.utils.utils import MergeLayer
 
 
 class TemporalAttentionLayer(torch.nn.Module):

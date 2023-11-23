@@ -183,7 +183,10 @@ class TGN(torch.nn.Module):
       self.memory.store_raw_messages(unique_destinations, destination_id_to_messages)
 
       if not self.memory_update_at_start:
-        self.get_updated_memory(list(range(self.n_nodes)), self.memory.messages)
+          unique_node_ids = np.unique(np.concatenate((unique_sources, unique_destinations)))
+          self.update_memory(unique_node_ids,
+                             self.memory.messages)
+          self.memory.clear_messages(unique_node_ids)
 
       if self.dyrep:
         source_node_embedding = memory[source_nodes]
